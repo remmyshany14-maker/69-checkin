@@ -2,7 +2,9 @@ name: Auto Checkin
 
 on:
   schedule:
-    - cron: '0 1 * * *'
+    # 北京时间早上 8 点
+    - cron: '0 0 * * *'
+
   workflow_dispatch:
 
 jobs:
@@ -16,10 +18,15 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Run Script
         run: node checkin.js
         env:
           USER_EMAIL: ${{ secrets.USER_EMAIL }}
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
+
+          # 邮件配置
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
