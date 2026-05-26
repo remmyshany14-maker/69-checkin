@@ -3,6 +3,41 @@ const domain = "https://69yun69.com";
 const user = process.env.USER_EMAIL;
 const pass = process.env.USER_PASSWORD;
 
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
+const toEmail = process.env.TO_EMAIL;
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function sendMail(subject, text) {
+
+  if (!smtpUser || !smtpPass || !toEmail) {
+    console.log("未配置邮件通知");
+    return;
+  }
+
+  const nodemailer = await import("nodemailer");
+
+  const transporter = nodemailer.default.createTransport({
+    service: "qq",
+    auth: {
+      user: smtpUser,
+      pass: smtpPass
+    }
+  });
+
+  await transporter.sendMail({
+    from: smtpUser,
+    to: toEmail,
+    subject,
+    text
+  });
+
+  console.log("邮件发送成功");
+}
+
 async function checkin() {
 
   console.log("开始签到");
@@ -56,9 +91,50 @@ async function checkin() {
   console.log("签到结果:");
   console.log(result);
 
+  await sendMail(
+    "69云签到结果",
+    JSON.stringify(result, null, 2)
+  );
+
 }
 
-checkin().catch(err => {
+async function retryCheckin() {
+
+  const maxRetry = 3;
+
+  for (let i = 1; i <= maxRetry; i++) {
+
+    try {
+
+      console.log(`第 ${i} 次尝试`);
+
+      await checkin();
+
+      return;
+
+    } catch (err) {
+
+      console.log(`失败: ${err.message}`);
+
+      if (i === maxRetry) {
+
+        await sendMail(
+          "69云签到失败",
+          err.message
+        );
+
+        throw err;
+      }
+
+      await sleep(5000);
+
+    }
+
+  }
+
+}
+
+retryCheckin().catch(err => {
   console.error(err);
   process.exit(1);
 });
