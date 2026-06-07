@@ -117,7 +117,11 @@ Cookie: cookies,
 const userHtml = await userPageResponse.text();
 
 console.log("========== 用户中心页面 ==========");
-console.log(userHtml.substring(0, 5000));
+  
+console.log(userHtml.includes("王者Lv7"));
+console.log(userHtml.includes("剩余流量"));
+console.log(userHtml.includes("已用流量"));
+  
 console.log("========== 页面结束 ==========");
 
 
