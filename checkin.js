@@ -116,14 +116,20 @@ Cookie: cookies,
 
 const userHtml = await userPageResponse.text();
 
-console.log("========== 用户中心页面 ==========");
-  
-console.log(userHtml.includes("王者Lv7"));
-console.log(userHtml.includes("剩余流量"));
-console.log(userHtml.includes("已用流量"));
-  
-console.log("========== 页面结束 ==========");
+console.log("========== 流量测试 ==========");
 
+const remainMatch = userHtml.match(
+  /<strong>([\d.]+GB)<\/strong>\s*<\/div>\s*<p class="text-dark-50">剩余流量/
+);
+
+const usedMatch = userHtml.match(
+  /已用流量：([\d.]+GB)/
+);
+
+console.log("剩余流量:", remainMatch?.[1]);
+console.log("已用流量:", usedMatch?.[1]);
+
+console.log("========== 测试结束 ==========");
 
   // 签到
   const checkinResponse = await fetchWithTimeout(
