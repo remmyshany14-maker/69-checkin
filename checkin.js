@@ -11,6 +11,26 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// fetch 超时保护
+async function fetchWithTimeout(url, options = {}, timeout = 15000) {
+  const controller = new AbortController();
+
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendMail(subject, text) {
   if (!smtpUser || !smtpPass || !toEmail) {
     console.log("未配置邮件通知");
@@ -38,31 +58,39 @@ async function sendMail(subject, text) {
 }
 
 async function checkin() {
+  const startTime = Date.now();
+
   console.log("开始签到");
 
   // 登录
-  const loginResponse = await fetch(`${domain}/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      "User-Agent": "Mozilla/5.0",
-      "X-Requested-With": "XMLHttpRequest"
-    },
-    body:
-      `email=${encodeURIComponent(user)}` +
-      `&passwd=${encodeURIComponent(pass)}` +
-      `&remember_me=on&code=`
-  });
+  const loginResponse = await fetchWithTimeout(
+    `${domain}/auth/login`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/x-www-form-urlencoded; charset=UTF-8",
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body:
+        `email=${encodeURIComponent(user)}` +
+        `&passwd=${encodeURIComponent(pass)}` +
+        `&remember_me=on&code=`
+    }
+  );
 
   const loginJson = await loginResponse.json();
 
   console.log("登录结果:", loginJson);
 
   if (loginJson.ret !== 1) {
-    throw new Error("登录失败");
+    throw new Error(
+      `登录失败：${JSON.stringify(loginJson)}`
+    );
   }
 
-  // 获取 cookie
+  // 获取 Cookie
   const rawCookies = loginResponse.headers.get("set-cookie");
 
   if (!rawCookies) {
@@ -75,75 +103,117 @@ async function checkin() {
     .join("; ");
 
   // 签到
-  const checkinResponse = await fetch(`${domain}/user/checkin`, {
-    method: "POST",
-    headers: {
-      "Cookie": cookies,
-      "User-Agent": "Mozilla/5.0",
-      "X-Requested-With": "XMLHttpRequest"
+  const checkinResponse = await fetchWithTimeout(
+    `${domain}/user/checkin`,
+    {
+      method: "POST",
+      headers: {
+        Cookie: cookies,
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest"
+      }
     }
-  });
+  );
 
   const result = await checkinResponse.json();
 
   console.log("签到结果:", result);
 
   const msg = result.msg || "无返回内容";
-  const isSuccess = result.ret === 1;
+
+  const duration =
+    ((Date.now() - startTime) / 1000).toFixed(2);
+
+  let subject = "";
+  let status = "";
+
+  if (result.ret === 1) {
+    subject = "✅ 69云签到成功";
+    status = "✅ 今日签到成功";
+  } else if (
+    msg.includes("已经") ||
+    msg.includes("已签到")
+  ) {
+    subject = "ℹ️ 69云今日已签到";
+    status = "ℹ️ 今日已经签到";
+  } else {
+    subject = "⚠️ 69云签到异常";
+    status = "⚠️ 签到返回异常";
+  }
 
   const emailText = `
 📌 69云签到结果
 
-状态：${isSuccess ? "✅ 成功" : "⚠️ 失败/已签到"}
+状态：
+${status}
 
-------------------------
+返回信息：
 ${msg}
-------------------------
 
-⏰ 时间：${new Date().toLocaleString()}
+运行耗时：
+${duration} 秒
+
+原始返回：
+${JSON.stringify(result, null, 2)}
+
+执行时间：
+${new Date().toLocaleString()}
+
+========================
+GitHub Actions 自动执行
+========================
 `;
 
-  await sendMail("69云签到结果", emailText);
+  await sendMail(subject, emailText);
 
   return result;
 }
 
 async function retryCheckin() {
   const maxRetry = 3;
+
   let lastError = null;
-  let lastResult = null;
 
   for (let i = 1; i <= maxRetry; i++) {
     try {
       console.log(`第 ${i} 次尝试`);
-      lastResult = await checkin();
+
+      await checkin();
+
       return;
     } catch (err) {
       console.log(`失败: ${err.message}`);
+
       lastError = err;
 
       if (i < maxRetry) {
+        console.log("5秒后重试...");
         await sleep(5000);
       }
     }
   }
 
-  // 最终失败才发邮件
+  // 最终失败邮件
   const emailText = `
-📌 69云签到结果（最终失败）
+📌 69云签到最终失败
 
-❌ 已重试 ${maxRetry} 次仍失败
+已重试 ${maxRetry} 次
 
 错误信息：
 ${lastError?.message || "未知错误"}
 
-返回数据：
-${JSON.stringify(lastResult, null, 2)}
+执行时间：
+${new Date().toLocaleString()}
 
-⏰ 时间：${new Date().toLocaleString()}
+========================
+GitHub Actions 自动执行
+========================
 `;
 
-  await sendMail("69云签到失败", emailText);
+  await sendMail(
+    "❌ 69云签到失败",
+    emailText
+  );
 
   throw lastError;
 }
