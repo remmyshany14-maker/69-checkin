@@ -118,10 +118,28 @@ async function retryCheckin() {
 
       if (i === maxRetry) {
 
-        await sendMail(
-          "69云签到失败",
-          err.message
-        );
+        const msg = result.msg || JSON.stringify(result, null, 2);
+
+const msg = result.msg || "无返回内容";
+
+const isSuccess = result.ret === 1;
+
+const emailText = `
+📌 69云签到结果
+
+状态：${isSuccess ? "✅ 成功" : "⚠️ 已执行/失败"}
+
+------------------------
+${msg}
+------------------------
+
+⏰ 时间：${new Date().toLocaleString()}
+`;
+
+await sendMail(
+  "69云签到结果",
+  emailText
+);
 
         throw err;
       }
