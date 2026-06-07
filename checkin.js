@@ -12,7 +12,6 @@ async function sleep(ms) {
 }
 
 async function sendMail(subject, text) {
-
   if (!smtpUser || !smtpPass || !toEmail) {
     console.log("未配置邮件通知");
     return;
@@ -39,7 +38,6 @@ async function sendMail(subject, text) {
 }
 
 async function checkin() {
-
   console.log("开始签到");
 
   // 登录
@@ -58,7 +56,7 @@ async function checkin() {
 
   const loginJson = await loginResponse.json();
 
-  console.log(loginJson);
+  console.log("登录结果:", loginJson);
 
   if (loginJson.ret !== 1) {
     throw new Error("登录失败");
@@ -88,46 +86,15 @@ async function checkin() {
 
   const result = await checkinResponse.json();
 
-  console.log("签到结果:");
-  console.log(result);
+  console.log("签到结果:", result);
 
-  await sendMail(
-    "69云签到结果",
-    JSON.stringify(result, null, 2)
-  );
+  const msg = result.msg || "无返回内容";
+  const isSuccess = result.ret === 1;
 
-}
-
-async function retryCheckin() {
-
-  const maxRetry = 3;
-
-  for (let i = 1; i <= maxRetry; i++) {
-
-    try {
-
-      console.log(`第 ${i} 次尝试`);
-
-      await checkin();
-
-      return;
-
-    } catch (err) {
-
-      console.log(`失败: ${err.message}`);
-
-      if (i === maxRetry) {
-
-        const msg = result.msg || JSON.stringify(result, null, 2);
-
-const msg = result.msg || "无返回内容";
-
-const isSuccess = result.ret === 1;
-
-const emailText = `
+  const emailText = `
 📌 69云签到结果
 
-状态：${isSuccess ? "✅ 成功" : "⚠️ 已执行/失败"}
+状态：${isSuccess ? "✅ 成功" : "⚠️ 失败/已签到"}
 
 ------------------------
 ${msg}
@@ -136,20 +103,49 @@ ${msg}
 ⏰ 时间：${new Date().toLocaleString()}
 `;
 
-await sendMail(
-  "69云签到结果",
-  emailText
-);
+  await sendMail("69云签到结果", emailText);
 
-        throw err;
+  return result;
+}
+
+async function retryCheckin() {
+  const maxRetry = 3;
+  let lastError = null;
+  let lastResult = null;
+
+  for (let i = 1; i <= maxRetry; i++) {
+    try {
+      console.log(`第 ${i} 次尝试`);
+      lastResult = await checkin();
+      return;
+    } catch (err) {
+      console.log(`失败: ${err.message}`);
+      lastError = err;
+
+      if (i < maxRetry) {
+        await sleep(5000);
       }
-
-      await sleep(5000);
-
     }
-
   }
 
+  // 最终失败才发邮件
+  const emailText = `
+📌 69云签到结果（最终失败）
+
+❌ 已重试 ${maxRetry} 次仍失败
+
+错误信息：
+${lastError?.message || "未知错误"}
+
+返回数据：
+${JSON.stringify(lastResult, null, 2)}
+
+⏰ 时间：${new Date().toLocaleString()}
+`;
+
+  await sendMail("69云签到失败", emailText);
+
+  throw lastError;
 }
 
 retryCheckin().catch(err => {
