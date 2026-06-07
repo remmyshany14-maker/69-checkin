@@ -129,6 +129,17 @@ const usedMatch = userHtml.match(
 console.log("剩余流量:", remainMatch?.[1]);
 console.log("已用流量:", usedMatch?.[1]);
 
+  const planMatch = userHtml.match(
+  /当前生效套餐：[\s\S]*?<span class="font-weight-bold">([^<]+)</
+);
+
+const resetMatch = userHtml.match(
+  /下次重置时间：[\s\S]*?<span class="font-weight-bold">([^<]+)</
+);
+
+console.log("套餐:", planMatch?.[1]?.trim());
+console.log("重置时间:", resetMatch?.[1]?.trim());
+
 console.log("========== 测试结束 ==========");
 
   // 签到
