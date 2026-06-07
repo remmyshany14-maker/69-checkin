@@ -137,8 +137,23 @@ const resetMatch = userHtml.match(
   /下次重置时间：[\s\S]*?<span class="font-weight-bold">([^<]+)</
 );
 
-console.log("套餐:", planMatch?.[1]?.trim());
-console.log("重置时间:", resetMatch?.[1]?.trim());
+const remainTraffic = remainMatch?.[1] || "未知";
+const usedTraffic = usedMatch?.[1] || "未知";
+
+const planName =
+  planMatch?.[1]?.trim() || "未知";
+
+const resetTime =
+  resetMatch?.[1]?.trim() || "未知";
+
+const totalTraffic =
+(
+  parseFloat(remainTraffic) +
+  parseFloat(usedTraffic)
+).toFixed(2) + "GB";
+
+console.log("套餐:", planName);
+console.log("重置时间:", resetTime);
 
 console.log("========== 测试结束 ==========");
 
@@ -160,6 +175,13 @@ console.log("========== 测试结束 ==========");
   console.log("签到结果:", result);
 
   const msg = result.msg || "无返回内容";
+
+  const rewardMatch = msg.match(
+  /获得了\s*([\d.]+(?:MB|GB))/
+);
+
+const rewardTraffic =
+  rewardMatch?.[1] || "无";
   let signMessage = msg;
 let noticeMessage = "";
 
@@ -210,6 +232,35 @@ ${status}
 ${signMessage}
 </p>
 
+<hr>
+
+<h3>🎁 本次签到奖励</h3>
+
+<p>
+${rewardTraffic}
+</p>
+
+<hr>
+
+<h3>📦 套餐信息</h3>
+
+<p>
+套餐：${planName}
+<br>
+重置时间：${resetTime}
+</p>
+
+<hr>
+
+<h3>📊 流量统计</h3>
+
+<p>
+总流量：${totalTraffic}
+<br>
+剩余流量：${remainTraffic}
+<br>
+已用流量：${usedTraffic}
+</p>
 ${
   noticeMessage
     ? `
