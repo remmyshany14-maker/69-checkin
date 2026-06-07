@@ -103,6 +103,24 @@ async function checkin() {
     .map(c => c.split(";")[0])
     .join("; ");
 
+  // 获取用户中心页面
+const userPageResponse = await fetchWithTimeout(
+`${domain}/user`,
+{
+headers: {
+Cookie: cookies,
+"User-Agent": "Mozilla/5.0"
+}
+}
+);
+
+const userHtml = await userPageResponse.text();
+
+console.log("========== 用户中心页面 ==========");
+console.log(userHtml.substring(0, 5000));
+console.log("========== 页面结束 ==========");
+
+
   // 签到
   const checkinResponse = await fetchWithTimeout(
     `${domain}/user/checkin`,
