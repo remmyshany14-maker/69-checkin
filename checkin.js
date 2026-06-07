@@ -31,31 +31,32 @@ async function fetchWithTimeout(url, options = {}, timeout = 15000) {
   }
 }
 
-async function sendMail(subject, text) {
-  if (!smtpUser || !smtpPass || !toEmail) {
-    console.log("未配置邮件通知");
-    return;
-  }
-
-  const nodemailer = await import("nodemailer");
-
-  const transporter = nodemailer.default.createTransport({
-    service: "qq",
-    auth: {
-      user: smtpUser,
-      pass: smtpPass
-    }
-  });
-
-  await transporter.sendMail({
-    from: smtpUser,
-    to: toEmail,
-    subject,
-    text
-  });
-
-  console.log("邮件发送成功");
+async function sendMail(subject, htmlContent) {
+if (!smtpUser || !smtpPass || !toEmail) {
+console.log("未配置邮件通知");
+return;
 }
+
+const nodemailer = await import("nodemailer");
+
+const transporter = nodemailer.default.createTransport({
+service: "qq",
+auth: {
+user: smtpUser,
+pass: smtpPass
+}
+});
+
+await transporter.sendMail({
+from: smtpUser,
+to: toEmail,
+subject,
+html: htmlContent
+});
+
+console.log("邮件发送成功");
+}
+
 
 async function checkin() {
   const startTime = Date.now();
@@ -120,6 +121,16 @@ async function checkin() {
   console.log("签到结果:", result);
 
   const msg = result.msg || "无返回内容";
+  let signMessage = msg;
+let noticeMessage = "";
+
+const parts = msg.split("\n\n");
+
+if (parts.length > 1) {
+signMessage = parts[0].trim();
+noticeMessage = parts.slice(1).join("\n\n").trim();
+}
+
 
   const duration =
     ((Date.now() - startTime) / 1000).toFixed(2);
@@ -141,27 +152,75 @@ async function checkin() {
     status = "⚠️ 签到返回异常";
   }
 
-  const emailText = `
-📌 69云签到结果
+ const emailText = `
+<div style="
+font-family:Arial,sans-serif;
+line-height:1.8;
+max-width:700px;
+">
 
-状态：
+<h2>📌 69云签到结果</h2>
+
+<p>
+<strong>状态：</strong><br>
 ${status}
+</p>
 
-返回信息：
-${msg}
+<p>
+<strong>签到信息：</strong><br>
+${signMessage}
+</p>
 
-运行耗时：
+${
+  noticeMessage
+    ? `
+<hr>
+
+<h3>📢 网站公告</h3>
+
+<div style="
+background:#f5f5f5;
+padding:12px;
+border-radius:6px;
+white-space:pre-wrap;
+">
+${noticeMessage}
+</div>
+`
+    : ""
+}
+
+<hr>
+
+<p>
+<strong>运行耗时：</strong>
 ${duration} 秒
+</p>
 
-原始返回：
-${JSON.stringify(result, null, 2)}
-
-执行时间：
+<p>
+<strong>执行时间：</strong>
 ${new Date().toLocaleString()}
+</p>
 
-========================
+<details>
+<summary>查看原始返回数据</summary>
+
+<pre>
+${JSON.stringify(result, null, 2)}
+</pre>
+
+</details>
+
+<hr>
+
+<p style="
+color:gray;
+font-size:12px;
+">
 GitHub Actions 自动执行
-========================
+</p>
+
+</div>
 `;
 
   await sendMail(subject, emailText);
