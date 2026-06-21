@@ -1,35 +1,36 @@
 name: Auto Checkin
 
 on:
-  schedule:
-    # 北京时间早上 8 点（UTC 0 点）
-    - cron: '0 0 * * *'
+schedule:
+# 北京时间早上 8 点（UTC 0 点）
+- cron: '0 0 * * *'
 
-  workflow_dispatch:
+workflow_dispatch:
 
 jobs:
-  checkin:
-    runs-on: ubuntu-latest
+checkin:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-  
+```
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-python@v5
-        with:
-          node-version: 22
-          cache: npm
+  - name: Setup Node
+    uses: actions/setup-node@v4
+    with:
+      node-version: 22
+      cache: npm
 
-      - name: Install Dependencies
-        run: npm install
+  - name: Install Dependencies
+    run: npm install
 
-      - name: Run Script
-        run: node checkin.js
-        env:
-          USER_EMAIL: ${{ secrets.USER_EMAIL }}
-          USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+  - name: Run Script
+    env:
+      USER_EMAIL: ${{ secrets.USER_EMAIL }}
+      USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      TO_EMAIL: ${{ secrets.TO_EMAIL }}
+    run: node checkin.js
+```
