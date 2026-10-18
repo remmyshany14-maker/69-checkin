@@ -1,0 +1,103 @@
+name: Checkin Failure Monitor
+
+on:
+  schedule:
+    # 每天北京时间 10:00 检查当天 08:00 的签到是否成功
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install email dependency
+        run: npm install --no-save nodemailer
+
+      - name: Check today's check-in and alert if missing or failed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import nodemailer from 'nodemailer';
+
+          const required = ['SMTP_USER', 'SMTP_PASS', 'TO_EMAIL'];
+          const missing = required.filter((key) => !process.env[key]);
+          if (missing.length) {
+            console.error('缺少邮件配置 Secrets:', missing.join(', '));
+            process.exit(1);
+          }
+
+          const repo = process.env.REPOSITORY;
+          const token = process.env.GH_TOKEN;
+          const today = new Date().toISOString().slice(0, 10);
+          const apiUrl = `https://api.github.com/repos/${repo}/actions/workflows/checkin.yml/runs?branch=main&per_page=20`;
+
+          const response = await fetch(apiUrl, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`读取 GitHub Actions 运行记录失败：HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          const todaysRuns = (data.workflow_runs || []).filter(
+            (run) => run.created_at?.startsWith(today)
+          );
+          const successfulRun = todaysRuns.find((run) => run.conclusion === 'success');
+
+          if (successfulRun) {
+            console.log(`今天的签到 Workflow 已成功：${successfulRun.html_url}`);
+            process.exit(0);
+          }
+
+          const latestRun = todaysRuns[0];
+          const reason = latestRun
+            ? `今天的签到没有成功完成。最近一次状态：${latestRun.status}；结果：${latestRun.conclusion || '尚无结论'}。`
+            : `截至 UTC 02:00，今天没有找到签到 Workflow 的运行记录。可能是定时任务未触发、被禁用或启动延迟。`;
+
+          const transporter = nodemailer.createTransport({
+            service: 'qq',
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS
+            }
+          });
+
+          const runUrl = latestRun?.html_url || `https://github.com/${repo}/actions/workflows/checkin.yml`;
+          await transporter.sendMail({
+            from: process.env.SMTP_USER,
+            to: process.env.TO_EMAIL,
+            subject: '🚨 69云签到监控提醒：今天未确认成功',
+            text: [
+              '69云签到监控发现异常。',
+              '',
+              reason,
+              `检查日期（UTC）：${today}`,
+              `仓库：${repo}`,
+              `查看签到运行记录：${runUrl}`,
+              '',
+              '请打开 GitHub Actions 检查 Auto Checkin 的运行状态。'
+            ].join('\n')
+          });
+
+          console.log('异常提醒邮件已发送。');
+          NODE
