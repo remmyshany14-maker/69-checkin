@@ -41,6 +41,26 @@ jobs:
             process.exit(1);
           }
 
+          const transporter = nodemailer.createTransport({
+            service: 'qq',
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS
+            }
+          });
+
+          // 手动点击 Run workflow 时，发送测试邮件，方便验证邮箱配置
+          if (process.env.EVENT_NAME === 'workflow_dispatch') {
+            await transporter.sendMail({
+              from: process.env.SMTP_USER,
+              to: process.env.TO_EMAIL,
+              subject: '【测试邮件】69云签到监控邮件配置正常',
+              text: '这是一封由 GitHub Actions 手动触发的测试邮件。如果你收到了，说明监控工作流的 SMTP 邮件配置可以正常发送。'
+            });
+            console.log('测试邮件已提交给邮件服务器。请检查收件箱和垃圾邮件箱。');
+            process.exit(0);
+          }
+
           const repo = process.env.REPOSITORY;
           const token = process.env.GH_TOKEN;
           const today = new Date().toISOString().slice(0, 10);
@@ -73,14 +93,6 @@ jobs:
           const reason = latestRun
             ? `今天的签到没有成功完成。最近一次状态：${latestRun.status}；结果：${latestRun.conclusion || '尚无结论'}。`
             : `截至 UTC 02:00，今天没有找到签到 Workflow 的运行记录。可能是定时任务未触发、被禁用或启动延迟。`;
-
-          const transporter = nodemailer.createTransport({
-            service: 'qq',
-            auth: {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS
-            }
-          });
 
           const runUrl = latestRun?.html_url || `https://github.com/${repo}/actions/workflows/checkin.yml`;
           await transporter.sendMail({
